@@ -11,7 +11,7 @@ Adapted for modern Linux desktop environments by: Viet Dang (Vietnamese: Đặng
 
 ## License
 
-LGPL
+GNU Lesser General Public License (LGPL)
 
 ## To install:
 * Run the install.sh script from the Crystal Remix directory
