@@ -11,7 +11,7 @@ Adapted for modern Linux desktop environments by: Viet Dang (Vietnamese: Đặng
 
 ## License
 
-The original Crystal icon sets were licensed under the LGPL.
+LGPL
 
 ## To install:
 * Run the install.sh script from the Crystal Remix directory
