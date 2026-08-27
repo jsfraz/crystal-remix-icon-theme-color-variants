@@ -9,6 +9,7 @@ if [ "$USER" = "root" ]; then
 fi
 
 mkdir -p ${INSTALL_PATH}
-rsync -a --exclude=".*" . ${INSTALL_PATH}
+rsync -a --exclude=".*" --exclude="tools" --exclude="docs" \
+    --exclude="build.sh" --exclude="*.md" --exclude="*.jpg" . ${INSTALL_PATH}
 
 which gtk-update-icon-cache && gtk-update-icon-cache -q ${INSTALL_PATH}

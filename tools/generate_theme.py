@@ -41,7 +41,9 @@ PRESETS = {
     "pink": 320.0,
 }
 
-_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "tools", "*.md", "*.jpg", "*.pyc")
+_IGNORE_PATTERNS = shutil.ignore_patterns(
+    "__pycache__", "tools", "docs", "build.sh", "*.md", "*.jpg", "*.pyc"
+)
 
 
 def IGNORE(directory, names):
@@ -160,6 +162,9 @@ def main() -> None:
                          f"{os.cpu_count()}). Use 1 to run in-process")
     ap.add_argument("--force", action="store_true",
                     help="replace the destination directory if it exists")
+    ap.add_argument("--no-hint", action="store_true",
+                    help="skip the closing 'install with' line, for callers such "
+                         "as build.sh that install the variant themselves")
     ap.add_argument("--dry-run", action="store_true",
                     help="report what would change without writing anything")
     args = ap.parse_args()
@@ -233,7 +238,8 @@ def main() -> None:
     for context in sorted(context_totals):
         hit, tot = by_context[context], context_totals[context]
         print(f"    {context:12} {hit:5d} / {tot:5d}  ({100 * hit // tot:3d}%)")
-    print(f"install with: cd {dst} && ./install.sh")
+    if not args.no_hint:
+        print(f"install with: cd {dst} && ./install.sh")
 
 
 if __name__ == "__main__":
