@@ -76,10 +76,12 @@ def label(width: int, text: str) -> np.ndarray:
     return strip
 
 
-def build_sheet(hue: float, sat_scale: float, val_scale: float) -> np.ndarray:
+def build_sheet(hue: float, sat_scale: float, val_scale: float,
+                samples=None, columns: int = 0) -> np.ndarray:
     shift = shift_for_target(hue)
+    samples = SAMPLES if samples is None else samples
     cols = []
-    for rel in SAMPLES:
+    for rel in samples:
         src = REPO / rel
         original = cv2.imread(str(src), cv2.IMREAD_UNCHANGED)
         if original is None:
@@ -99,17 +101,29 @@ def build_sheet(hue: float, sat_scale: float, val_scale: float) -> np.ndarray:
         cols.append(col)
         print(f"  {rel:34} {changed:6d} px  ({pct:.0f}% of visible)")
 
-    gap = np.full((cols[0].shape[0], PAD, 3), 245, np.uint8)
-    body = cols[0]
-    for col in cols[1:]:
-        body = np.hstack([body, gap, col])
+    if not cols:
+        raise SystemExit("no readable icons to render")
 
+    per_row = columns if columns > 0 else len(cols)
+    blank = np.full_like(cols[0], 245)
+    gap = np.full((cols[0].shape[0], PAD, 3), 245, np.uint8)
+
+    rows = []
+    for start in range(0, len(cols), per_row):
+        chunk = cols[start:start + per_row]
+        chunk += [blank] * (per_row - len(chunk))
+        line = chunk[0]
+        for col in chunk[1:]:
+            line = np.hstack([line, gap, col])
+        rows.append(line)
+        rows.append(np.full((PAD, line.shape[1], 3), 245, np.uint8))
+
+    body = np.vstack(rows)
     header = np.full((26, body.shape[1], 3), 245, np.uint8)
     cv2.putText(header, f"target hue {hue:.0f}  (shift {shift:+.0f})  top: original  bottom: recolored",
                 (4, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (30, 30, 30), 1, cv2.LINE_AA)
 
-    border = np.full((PAD, body.shape[1], 3), 245, np.uint8)
-    return np.vstack([header, body, border])
+    return np.vstack([header, body])
 
 
 def main() -> None:
@@ -117,10 +131,26 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hue", type=float, action="append",
                     help="target hue in degrees, repeatable (default: 0, 120, 280)")
+    ap.add_argument("--dir",
+                    help="render every PNG in this directory instead of the built-in "
+                         "sample set, e.g. 128x128/actions")
+    ap.add_argument("--columns", type=int, default=10,
+                    help="tiles per row when using --dir (default: 10)")
     ap.add_argument("--sat-scale", type=float, default=1.0)
     ap.add_argument("--val-scale", type=float, default=1.0)
     ap.add_argument("--out-dir", default=str(Path(__file__).resolve().parent / "preview"))
     args = ap.parse_args()
+
+    samples, columns, tag = None, 0, "preview"
+    if args.dir:
+        target = REPO / args.dir
+        if not target.is_dir():
+            raise SystemExit(f"{target} is not a directory")
+        samples = sorted(str(p.relative_to(REPO)) for p in target.glob("*.png"))
+        if not samples:
+            raise SystemExit(f"no PNGs in {target}")
+        columns = args.columns
+        tag = args.dir.strip("/").replace("/", "-")
 
     hues = args.hue or [0.0, 120.0, 280.0]
     out_dir = Path(args.out_dir)
@@ -128,8 +158,8 @@ def main() -> None:
 
     for hue in hues:
         print(f"hue {hue:.0f}:")
-        sheet = build_sheet(hue, args.sat_scale, args.val_scale)
-        dst = out_dir / f"preview-hue{int(hue):03d}.png"
+        sheet = build_sheet(hue, args.sat_scale, args.val_scale, samples, columns)
+        dst = out_dir / f"{tag}-hue{int(hue):03d}.png"
         cv2.imwrite(str(dst), sheet, [cv2.IMWRITE_PNG_COMPRESSION, 9])
         print(f"  -> {dst}")
 

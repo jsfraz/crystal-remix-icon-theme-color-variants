@@ -1,25 +1,33 @@
 #!/usr/bin/env python3
 """Generate a recolored variant of the Crystal Remix icon theme.
 
-The source theme is copied to a sibling directory and every icon in the
-places/ contexts is passed through a soft-masked hue rotation. Icons with no
-Crystal blue in them (folder-red, folder-green, user-home, ...) come out
-byte-identical because the mask is hue-driven rather than filename-driven.
+The source theme is copied to a sibling directory and every PNG in it, across
+all contexts, is passed through a soft-masked hue rotation for a unified system
+accent color. Icons with no Crystal blue in them (flag, dialog-ok, folder-red,
+...) come out byte-identical because the mask is hue-driven rather than
+filename-driven, so no allowlist is needed.
 
     .venv/bin/python tools/generate_theme.py --color-name Red
     .venv/bin/python tools/generate_theme.py --color-name Ocean --hue 190
+    .venv/bin/python tools/generate_theme.py --color-name Red --jobs 1
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
+import os
 import re
 import shutil
 import sys
 import time
+from collections import Counter
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from recolor import BLUE_CENTER, recolor_file, shift_for_target
+from recolor import BLUE_CENTER, init_worker, recolor_file, shift_for_target
+
+SIZE_DIR = re.compile(r"^\d+x\d+$")
 
 PRESETS = {
     "red": 0.0,
@@ -33,9 +41,12 @@ PRESETS = {
     "pink": 320.0,
 }
 
-IGNORE = shutil.ignore_patterns(
-    ".git", ".github", ".venv", "__pycache__", "tools", "*.md", "*.jpg", "*.pyc"
-)
+_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "tools", "*.md", "*.jpg", "*.pyc")
+
+
+def IGNORE(directory, names):
+    """Skip the tooling and every dotfile, matching what install.sh rsyncs."""
+    return set(_IGNORE_PATTERNS(directory, names)) | {n for n in names if n.startswith(".")}
 
 
 def slugify(name: str) -> str:
@@ -88,8 +99,39 @@ def copy_theme(src: Path, dst: Path, force: bool) -> None:
     shutil.copytree(src, dst, ignore=IGNORE)
 
 
-def places_icons(root: Path) -> list[Path]:
-    return sorted(p for p in root.glob("*/places/*.png") if p.is_file())
+def theme_icons(root: Path) -> list[Path]:
+    """Every icon in the theme, across all contexts.
+
+    Restricted to `<size>x<size>/<context>/` so tooling output can never be
+    picked up if the caller points --source at a working directory.
+    """
+    return sorted(
+        p for p in root.glob("*/*/*.png")
+        if p.is_file() and SIZE_DIR.match(p.relative_to(root).parts[0])
+    )
+
+
+def _process(path: Path, hue_shift: float, sat_scale: float, val_scale: float) -> int:
+    """Worker entry point. Returns pixels touched, or -1 if the file failed."""
+    try:
+        return recolor_file(path, hue_shift, sat_scale, val_scale)
+    except OSError:
+        return -1
+
+
+def iter_results(targets, fn, jobs: int):
+    """Map fn over targets, in a process pool unless jobs is 1.
+
+    ProcessPoolExecutor.map preserves input order, so the caller can zip the
+    results straight back against targets. Workers edit the already-copied
+    destination files in place and return only an int, which keeps image data
+    out of the IPC path entirely.
+    """
+    if jobs == 1:
+        yield from map(fn, targets)
+        return
+    with ProcessPoolExecutor(max_workers=jobs, initializer=init_worker) as ex:
+        yield from ex.map(fn, targets, chunksize=16)
 
 
 def main() -> None:
@@ -113,6 +155,9 @@ def main() -> None:
                     help="optional saturation multiplier inside the mask")
     ap.add_argument("--val-scale", type=float, default=1.0,
                     help="optional value multiplier inside the mask")
+    ap.add_argument("--jobs", type=int, default=None,
+                    help="worker processes (default: all CPU cores, currently "
+                         f"{os.cpu_count()}). Use 1 to run in-process")
     ap.add_argument("--force", action="store_true",
                     help="replace the destination directory if it exists")
     ap.add_argument("--dry-run", action="store_true",
@@ -139,39 +184,55 @@ def main() -> None:
         print(f"sat x{args.sat_scale:.2f}  val x{args.val_scale:.2f}")
 
     if args.dry_run:
-        targets = places_icons(src)
-        print(f"dry run: would copy the theme and process {len(targets)} places icons")
+        targets = theme_icons(src)
+        print(f"dry run: would copy the theme and process {len(targets)} icons")
         return
 
     started = time.monotonic()
     copy_theme(src, dst, args.force)
     print(f"copied theme in {time.monotonic() - started:.1f}s")
 
-    targets = places_icons(dst)
+    targets = theme_icons(dst)
     total = len(targets)
-    recolored = untouched = 0
-    pixels = 0
+    jobs = args.jobs if args.jobs else (os.cpu_count() or 1)
+    jobs = max(1, min(jobs, total))
+    print(f"processing {total} icons on {jobs} worker{'s' if jobs > 1 else ''}")
 
-    for i, icon in enumerate(targets, 1):
-        try:
-            changed = recolor_file(icon, shift, args.sat_scale, args.val_scale)
-        except OSError as exc:
-            print(f"  warning: {exc}", file=sys.stderr)
-            continue
-        if changed:
+    fn = functools.partial(_process, hue_shift=shift,
+                           sat_scale=args.sat_scale, val_scale=args.val_scale)
+    recolored = skipped = failed = 0
+    pixels = 0
+    by_context: Counter[str] = Counter()
+    context_totals: Counter[str] = Counter()
+    step = max(1, total // 20)
+
+    for i, (icon, changed) in enumerate(zip(targets, iter_results(targets, fn, jobs)), 1):
+        context = icon.relative_to(dst).parts[1]
+        context_totals[context] += 1
+        if changed < 0:
+            failed += 1
+            print(f"  warning: failed to process {icon}", file=sys.stderr)
+        elif changed:
             recolored += 1
             pixels += changed
+            by_context[context] += 1
         else:
-            untouched += 1
-        if i % 50 == 0 or i == total:
-            print(f"  processed {i}/{total} icons...")
+            skipped += 1
+        if i % step == 0 or i == total:
+            print(f"  {100 * i // total:3d}%  {i}/{total}")
 
     update_index_theme(dst / "index.theme", display_name)
     update_install_script(dst / "install.sh", slug)
 
     elapsed = time.monotonic() - started
-    print(f"done in {elapsed:.1f}s: {recolored} icons recolored "
-          f"({pixels} pixels), {untouched} left untouched")
+    print(f"done in {elapsed:.1f}s: {recolored} icons recolored ({pixels} pixels), "
+          f"{skipped} had no Crystal blue and were left untouched")
+    if failed:
+        print(f"  {failed} icons failed", file=sys.stderr)
+    print("  by context:")
+    for context in sorted(context_totals):
+        hit, tot = by_context[context], context_totals[context]
+        print(f"    {context:12} {hit:5d} / {tot:5d}  ({100 * hit // tot:3d}%)")
     print(f"install with: cd {dst} && ./install.sh")
 
 

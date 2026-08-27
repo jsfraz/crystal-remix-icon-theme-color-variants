@@ -108,6 +108,16 @@ def recolor_array(
     return np.dstack([out_bgr, alpha]), changed
 
 
+def init_worker() -> None:
+    """Pin OpenCV to one thread inside pool workers.
+
+    Each process otherwise spins up its own OpenCV thread pool, and N processes
+    times N threads oversubscribes the machine badly enough to run slower than
+    a plain sequential pass.
+    """
+    cv2.setNumThreads(1)
+
+
 def read_icon(path) -> np.ndarray:
     img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
     if img is None:

@@ -12,8 +12,8 @@ Our primary task is creating automated color variants of this theme.
 4. **Lossless Saving:** Always save PNGs with maximum quality / zero compression loss to prevent artifacting in the icons.
 
 # Strict Rules for File System
-1. **Do not touch base icons:** Never overwrite the original `crystal-remix-icon-theme` files. Always operate on a copied directory (e.g., `Crystal-Remix-TargetColor`).
-2. **Selective targeting:** Unless instructed otherwise, apply recoloring ONLY to icons inside directories named `places` or files containing `folder` in their name. `apps`, `mimes`, and `devices` should generally keep their original colors.
+1. **System-wide Accent Color:** To achieve a fully unified theme, apply the HSV recoloring mask to ALL `.png` files across ALL directories (`actions`, `devices`, `mimetypes`, `categories`, etc.), not just `places`. 
+2. **Trust the Mask:** Rely entirely on the HSV color mask to selectively recolor only the "Crystal Blue" pixels. Icons that are predominantly red (flags), green (checkmarks), or contain no blue must be automatically skipped by the processing logic and copied verbatim.
 3. **Keep it executable:** If you write bash wrapper scripts (`.sh`), remind the user to make them executable (`chmod +x`).
 
 # Communication Style
