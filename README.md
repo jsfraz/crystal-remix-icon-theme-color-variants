@@ -8,20 +8,15 @@ Crystal Remix is a Crystal icon theme for modern Linux desktop environments, cre
 
 Every variant is generated from the same source icons. Blue is the original theme.
 
-| Blue *(original)* | Cyan | Teal |
-| :---: | :---: | :---: |
-| <img src="docs/previews/blue.png" width="230"> | <img src="docs/previews/cyan.png" width="230"> | <img src="docs/previews/teal.png" width="230"> |
-| `./build.sh blue` | `./build.sh cyan` | `./build.sh teal` |
+| Blue *(original)* | Teal | Green | Yellow |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/previews/blue.png" width="200"> | <img src="docs/previews/teal.png" width="200"> | <img src="docs/previews/green.png" width="200"> | <img src="docs/previews/yellow.png" width="200"> |
+| `./build.sh blue` | `./build.sh teal` | `./build.sh green` | `./build.sh yellow` |
 
-| Green | Yellow | Orange |
-| :---: | :---: | :---: |
-| <img src="docs/previews/green.png" width="230"> | <img src="docs/previews/yellow.png" width="230"> | <img src="docs/previews/orange.png" width="230"> |
-| `./build.sh green` | `./build.sh yellow` | `./build.sh orange` |
-
-| Red | Pink | Purple |
-| :---: | :---: | :---: |
-| <img src="docs/previews/red.png" width="230"> | <img src="docs/previews/pink.png" width="230"> | <img src="docs/previews/purple.png" width="230"> |
-| `./build.sh red` | `./build.sh pink` | `./build.sh purple` |
+| Orange | Red | Pink | Purple |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/previews/orange.png" width="200"> | <img src="docs/previews/red.png" width="200"> | <img src="docs/previews/pink.png" width="200"> | <img src="docs/previews/purple.png" width="200"> |
+| `./build.sh orange` | `./build.sh red` | `./build.sh pink` | `./build.sh purple` |
 
 Any other color works too — see [custom colors](#custom-colors) below.
 
@@ -75,7 +70,7 @@ If you would rather keep the generated theme directory instead of installing it,
 
 ## Custom colors
 
-`build.sh` covers the nine presets. For anything else, call the generator directly with a target hue in degrees (the `.venv` it uses is created by the first `build.sh` run):
+`build.sh` covers the eight presets. For anything else, call the generator directly with a target hue in degrees (the `.venv` it uses is created by the first `build.sh` run):
 
 ```sh
 .venv/bin/python tools/generate_theme.py --color-name Ocean --hue 195

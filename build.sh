@@ -136,7 +136,7 @@ for color in $COLORS; do
     echo "=== Installing $color ==="
     (cd "$WORKDIR/$variant" && ./install.sh)
 
-    # Drop it immediately so a full run needs room for one variant, not nine.
+    # Drop it immediately so a full run needs room for one variant, not all of them.
     rm -rf "$WORKDIR/$variant"
     INSTALLED="$INSTALLED $(echo "$variant" | tr 'A-Z' 'a-z')"
 done

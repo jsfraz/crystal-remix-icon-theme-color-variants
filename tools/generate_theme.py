@@ -35,7 +35,6 @@ PRESETS = {
     "yellow": 50.0,
     "green": 120.0,
     "teal": 175.0,
-    "cyan": 190.0,
     "blue": BLUE_CENTER,
     "purple": 280.0,
     "pink": 320.0,
